@@ -278,15 +278,11 @@ void      MultiuserFileSystem::Disc(XrdOucEnv &env)
     m_oss->Disc(env);
 }
 
+// EnvInfo() hands the configuration environment to the wrapped OSS at
+// start-up; it has no client, so always pass it through (a UserSentry would
+// be invalid and the wrapped OSS would never see the environment).
 void      MultiuserFileSystem::EnvInfo(XrdOucEnv *env)
 {
-    // This will be cleaned up automatically
-    std::unique_ptr<UserSentry> sentryPtr;
-    if (env) {
-        auto client = env->secEnv();
-        sentryPtr.reset(new UserSentry(client, m_log));
-        if (!sentryPtr->IsValid()) return;
-    }
     m_oss->EnvInfo(env);
 }
 
