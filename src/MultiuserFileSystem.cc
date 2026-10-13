@@ -253,11 +253,15 @@ int MultiuserFileSystem::Chmod(const char * path, mode_t mode, XrdOucEnv *env)
     return m_oss->Chmod(path, mode, env);
 }
 
+// Connect() and Disc() are login/logout notifications, not file system
+// operations, so they are passed through without switching to the client's
+// uid. Building a UserSentry here looked up the account on every login and
+// logout and logged a spurious "Multiuser denying access" (or "Anonymous
+// client") line whenever the entity was not mapped yet, e.g. for every
+// XrdHttp bridge login, whose name is still the certificate subject hash
+// because authorization only runs per request.
 void      MultiuserFileSystem::Connect(XrdOucEnv &env)
 {
-    auto client = env.secEnv();
-    UserSentry sentry(client, m_log);
-    if (!sentry.IsValid()) return;
     m_oss->Connect(env);
 }
 
@@ -272,9 +276,6 @@ int       MultiuserFileSystem::Create(const char *tid, const char *path, mode_t 
 
 void      MultiuserFileSystem::Disc(XrdOucEnv &env)
 {
-    auto client = env.secEnv();
-    UserSentry sentry(client, m_log);
-    if (!sentry.IsValid()) return;
     m_oss->Disc(env);
 }
 
