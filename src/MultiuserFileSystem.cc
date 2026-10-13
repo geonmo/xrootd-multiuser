@@ -253,13 +253,9 @@ int MultiuserFileSystem::Chmod(const char * path, mode_t mode, XrdOucEnv *env)
     return m_oss->Chmod(path, mode, env);
 }
 
-// Connect() and Disc() are login/logout notifications, not file system
-// operations, so they are passed through without switching to the client's
-// uid. Building a UserSentry here looked up the account on every connect and
-// disconnect and logged a misleading line whenever the entity was not mapped
-// at that point: "Anonymous client" for every XrdHttp disconnect (the entity
-// is already reset), and "Multiuser denying access" when the name is a token
-// subject or a certificate subject hash (authorization only runs per request).
+// Connect()/Disc() are login/logout notifications, not file system
+// operations; pass them through without a UserSentry (no account lookup,
+// no misleading per-connection log lines).
 void      MultiuserFileSystem::Connect(XrdOucEnv &env)
 {
     m_oss->Connect(env);
