@@ -129,7 +129,7 @@ public:
 private:
     std::unique_ptr<XrdOssDF> m_wrapped;
     XrdSysError &m_log;
-    const XrdSecEntity* m_client;
+    const XrdSecEntity* m_client{nullptr};
     mode_t m_umask_mode;
     ChecksumState *m_state;
     ssize_t m_nextoff;

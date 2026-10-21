@@ -40,8 +40,13 @@ public:
         return m_wrappedDir->StatRet(statStruct);
     }
 
-    int Close(long long *retsz=0) 
+    int Close(long long *retsz=0)
     {
+        // Close as the mapped user; see MultiuserFile::Close.
+        UserSentry sentry(m_client, m_log);
+        if (!sentry.IsValid()) {
+            m_log.Emsg("Close", "Unable to switch to mapped user; closing directory as daemon user");
+        }
         return m_wrappedDir->Close(retsz);
     }
 
@@ -49,7 +54,7 @@ public:
 private:
     std::unique_ptr<XrdOssDF> m_wrappedDir;
     XrdSysError m_log;
-    const XrdSecEntity* m_client;
+    const XrdSecEntity* m_client{nullptr};
 
 };
 
