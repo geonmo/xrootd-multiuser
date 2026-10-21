@@ -25,12 +25,14 @@ public:
         m_client = env.secEnv();
         UserSentry sentry(m_client, m_log);
         if (!sentry.IsValid()) {return -EACCES;}
+        m_identity = sentry.Identity();
         return m_wrappedDir->Opendir(path, env);
     }
 
     int Readdir(char *buff, int blen) 
     {
-        UserSentry sentry(m_client, m_log);
+        // Reuse the identity from Opendir(): no account lookup per entry.
+        UserSentry sentry(m_identity, m_log);
         if (!sentry.IsValid()) {return -EACCES;}
         return m_wrappedDir->Readdir(buff, blen);
     }
@@ -43,7 +45,7 @@ public:
     int Close(long long *retsz=0)
     {
         // Close as the mapped user; see MultiuserFile::Close.
-        UserSentry sentry(m_client, m_log);
+        UserSentry sentry(m_identity, m_log);
         if (!sentry.IsValid()) {
             m_log.Emsg("Close", "Unable to switch to mapped user; closing directory as daemon user");
         }
@@ -55,6 +57,7 @@ private:
     std::unique_ptr<XrdOssDF> m_wrappedDir;
     XrdSysError m_log;
     const XrdSecEntity* m_client{nullptr};
+    UserIdentity m_identity;
 
 };
 

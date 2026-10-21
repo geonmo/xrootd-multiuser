@@ -160,6 +160,7 @@ int     MultiuserFile::Open(const char *path, int Oflag, mode_t Mode, XrdOucEnv 
     m_client = env.secEnv();
     UserSentry sentry(m_client, m_log);
     if (!sentry.IsValid()) return -EACCES;
+    m_identity = sentry.Identity();
 
     auto open_result = m_wrapped->Open(path, Oflag, Mode, env);
 
@@ -187,7 +188,12 @@ ssize_t MultiuserFile::Write(const void *buffer, off_t offset, size_t size)
         return -ENOTSUP;
     }
 
-    auto result = m_wrapped->Write(buffer, offset, size);
+    ssize_t result;
+    {
+        UserSentry sentry(m_identity, m_log);
+        if (!sentry.IsValid()) {return -EACCES;}
+        result = m_wrapped->Write(buffer, offset, size);
+    }
     if (result >= 0) {m_nextoff += result;}
     if (m_state)
     {
@@ -203,7 +209,7 @@ int MultiuserFile::Close(long long *retsz)
     // Close as the mapped user: shared filesystems (e.g., FUSE-based or
     // Lustre) carry the caller's fsuid in the close / flush request and may
     // reject it when it differs from the user that opened the file.
-    UserSentry sentry(m_client, m_log);
+    UserSentry sentry(m_identity, m_log);
     if (!sentry.IsValid()) {
         // Still close the file to avoid leaking the descriptor.
         m_log.Emsg("Close", "Unable to switch to mapped user; closing as daemon user", m_fname.c_str());
