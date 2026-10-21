@@ -29,6 +29,17 @@ static const int g_minimum_gid = 500;
 
 
 /**
+ * Message classes for XrdSysError::Log(); multiuser.trace selects which are
+ * printed.  Errors use Emsg() and are always printed.
+ */
+namespace MultiuserLog {
+    const int Debug = 0x01;
+    const int Info  = 0x02;
+    const int All   = 0xff;
+}
+
+
+/**
  * Note: originally, we tried to use CAP_DAC_READ_SEARCH as that provides exactly what we need -
  * the ability to override the read/execute permissions of directories.  However, it turns out
  * that shared filesystems (at least, NFS and CephFS) don't understand Linux capabilities, ignore
@@ -230,7 +241,7 @@ public:
         identity.groups = std::move(groups);
 
         // TODO: One log line per FS open seems noisy -- could make this configurable.
-        m_log.Emsg("UserSentry", "Switching FS uid for user", username.c_str());
+        m_log.Log(MultiuserLog::Debug, "UserSentry", "Switching FS uid for user", username.c_str());
         if (!Switch(identity)) {
             m_log.Emsg("UserSentry", "Multiuser denying access: Failed to switch FS uid for user", username.c_str());
             return;

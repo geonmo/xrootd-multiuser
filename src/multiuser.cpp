@@ -162,9 +162,9 @@ int     MultiuserFile::Open(const char *path, int Oflag, mode_t Mode, XrdOucEnv 
     if ((Oflag & (O_WRONLY | O_RDWR)) && m_checksum_on_write)
     {
         m_state = new ChecksumState(m_digests);
-        m_log.Emsg("Open", "Will create checksums");
+        m_log.Log(MultiuserLog::Debug, "Open", "Will create checksums");
     } else {
-        m_log.Emsg("Open", "Will not create checksum");
+        m_log.Log(MultiuserLog::Debug, "Open", "Will not create checksum");
     }
 
     return open_result;

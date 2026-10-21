@@ -67,8 +67,28 @@ MultiuserFileSystem::Config(XrdSysLogger *lp, const char *configfn)
         return false;
     }
     Config.Attach(cfgFD);
+    // Per-request messages (e.g., "Switching FS uid") are debug-only unless
+    // multiuser.trace says otherwise.
+    m_log.setMsgMask(MultiuserLog::Info);
     const char *val;
     while ((val = Config.GetMyFirstWord())) {
+        // multiuser.trace [all|debug|info|none] ...
+        if (!strcmp("multiuser.trace", val)) {
+            int mask = 0;
+            while ((val = Config.GetWord())) {
+                if (!strcmp("all", val)) {mask |= MultiuserLog::All;}
+                else if (!strcmp("debug", val)) {mask |= MultiuserLog::Debug | MultiuserLog::Info;}
+                else if (!strcmp("info", val)) {mask |= MultiuserLog::Info;}
+                else if (!strcmp("none", val)) {mask = 0;}
+                else {
+                    m_log.Emsg("Config", "multiuser.trace: unknown level", val);
+                    Config.Close();
+                    return false;
+                }
+            }
+            m_log.setMsgMask(mask);
+            continue;
+        }
         if (!strcmp("multiuser.umask", val)) {
             val = Config.GetWord();
             if (!val || !val[0]) {
