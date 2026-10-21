@@ -189,11 +189,11 @@ int MultiuserFileSystem::Chmod(const char * path, mode_t mode, XrdOucEnv *env)
     return m_oss->Chmod(path, mode, env);
 }
 
+// Connect()/Disc() are login/logout notifications, not file system
+// operations; pass them through without a UserSentry (no account lookup,
+// no misleading per-connection log lines).
 void      MultiuserFileSystem::Connect(XrdOucEnv &env)
 {
-    auto client = env.secEnv();
-    UserSentry sentry(client, m_log);
-    if (!sentry.IsValid()) return;
     m_oss->Connect(env);
 }
 
@@ -208,9 +208,6 @@ int       MultiuserFileSystem::Create(const char *tid, const char *path, mode_t 
 
 void      MultiuserFileSystem::Disc(XrdOucEnv &env)
 {
-    auto client = env.secEnv();
-    UserSentry sentry(client, m_log);
-    if (!sentry.IsValid()) return;
     m_oss->Disc(env);
 }
 
