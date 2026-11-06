@@ -11,17 +11,23 @@ URL: https://github.com/opensciencegrid/xrootd-multiuser
 # git archive <tag> --prefix=xrootd-multiuser-%{version}/ | gzip -7 > ~/rpmbuild/SOURCES/xrootd-multiuser-%{version}.tar.gz
 Source0: %{name}-%{version}.tar.gz
 
-%define xrootd_current_major 5
-%define xrootd_current_minor 2
-%define xrootd_next_major 6
+# xrootd major to build against (5 or 6): rpmbuild --define 'xrootd_major 6'
+%{!?xrootd_major: %global xrootd_major 5}
+%global xrootd_next_major %{lua: print(tonumber(rpm.expand("%{xrootd_major}")) + 1)}
+
+%if %{xrootd_major} == 5
+%global xrootd_current_minor 2
+%else
+%global xrootd_current_minor 0
+%endif
 
 %if 0%{?rhel} > 8
 %global __cmake_in_source_build 1
 %endif
 
-BuildRequires: xrootd-server-libs >= 1:%{xrootd_current_major}
+BuildRequires: xrootd-server-libs >= 1:%{xrootd_major}
 BuildRequires: xrootd-server-libs <  1:%{xrootd_next_major}
-BuildRequires: xrootd-server-devel >= 1:%{xrootd_current_major}
+BuildRequires: xrootd-server-devel >= 1:%{xrootd_major}
 BuildRequires: xrootd-server-devel <  1:%{xrootd_next_major}
 BuildRequires: cmake
 BuildRequires: gcc-c++
@@ -32,7 +38,7 @@ BuildRequires: zlib-devel
 # For %{_unitdir} macro
 BuildRequires: systemd
 
-Requires: xrootd-server >= 1:%{xrootd_current_major}.%{xrootd_current_minor}
+Requires: xrootd-server >= 1:%{xrootd_major}.%{xrootd_current_minor}
 Requires: xrootd-server <  1:%{xrootd_next_major}.0.0-1
 
 %description
