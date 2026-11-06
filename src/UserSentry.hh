@@ -23,10 +23,6 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-// TODO: set this via library parameters.
-static const int g_minimum_uid = 500;
-static const int g_minimum_gid = 500;
-
 
 /**
  * Message classes for XrdSysError::Log(); multiuser.trace selects which are
@@ -152,6 +148,14 @@ public:
 
     static bool IsCmsd() {return m_is_cmsd;}
 
+    // Configure the minimum UID/GID a mapped username may resolve to.  Any
+    // username resolving to an ID below these thresholds is treated as a
+    // system account and denied access.  Defaults to 500 (see multiuser.cpp).
+    static void SetMinimumUid(uid_t uid) {m_min_uid = uid;}
+    static void SetMinimumGid(gid_t gid) {m_min_gid = gid;}
+    static uid_t GetMinimumUid() {return m_min_uid;}
+    static gid_t GetMinimumGid() {return m_min_gid;}
+
     static bool IsGsiUserMapped(const XrdSecEntity *client) {
         // If VOMS was used to map client, return true
         if (client->vorg) { return true; }
@@ -206,11 +210,11 @@ public:
             }
             return;
         }
-        if (pwd.pw_uid < g_minimum_uid) {
+        if (pwd.pw_uid < m_min_uid) {
             m_log.Emsg("UserSentry", "Multiuser denying access: Username", username.c_str(), "maps to a system UID; rejecting lookup");
             return;
         }
-        if (pwd.pw_gid < g_minimum_gid) {
+        if (pwd.pw_gid < m_min_gid) {
             m_log.Emsg("UserSentry", "Multiuser denying access: Username", username.c_str(), "maps to a system GID; rejecting lookup");
             return;
         }
@@ -298,6 +302,11 @@ private:
     UserIdentity m_identity;
 
     static bool m_is_cmsd;
+
+    // Minimum UID/GID thresholds; configurable via multiuser.minuid /
+    // multiuser.mingid.  Definitions (and defaults) live in multiuser.cpp.
+    static uid_t m_min_uid;
+    static gid_t m_min_gid;
 
     XrdSysError &m_log;
 };
