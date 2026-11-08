@@ -1,6 +1,8 @@
 
 
 
+#include <cerrno>
+#include <cstring>
 #include <sstream>
 #include <algorithm>
 #include <fstream>
@@ -197,11 +199,29 @@ int ChecksumManager::Set(const char *lfn, const char *cksname, const char *chksv
 
 int ChecksumManager::Del(const char *lfn, unsigned digests)
 {
+    // Set() stores each digest twice: as XrdCks.Human.<NAME> and through
+    // XrdCksManager (the attribute Get() reads), so remove both.
     std::string pfn = this->LFN2PFN(lfn);
+    int retval = 0;
     auto del_digest = [&](const char *digest_name) {
         std::string checksum_name = ATTR_PREFIX;
         checksum_name += digest_name;
-        XrdSysXAttrActive->Del(checksum_name.c_str(), pfn.c_str());
+        int rc = XrdSysXAttrActive->Del(checksum_name.c_str(), pfn.c_str());
+
+        XrdCksData cks;
+        std::string lower_name(digest_name);
+        std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+        strcpy(cks.Name, lower_name.c_str());
+        int rc2 = XrdCksManager::Del(pfn.c_str(), cks);
+
+        for (int r : {rc, rc2}) {
+            if (r < 0 && r != -ENODATA && r != -ENOENT) {  // nothing stored, or file gone
+                std::stringstream ss;
+                ss << "Failed to remove stale " << digest_name << " checksum of " << pfn << ": " << strerror(-r);
+                m_log.Emsg("Del", ss.str().c_str());
+                if (!retval) {retval = r;}
+            }
+        }
     };
 
     if (digests & ChecksumManager::CKSUM) del_digest("CKSUM");
@@ -210,7 +230,7 @@ int ChecksumManager::Del(const char *lfn, unsigned digests)
     if (digests & ChecksumManager::MD5) del_digest("MD5");
     if (digests & ChecksumManager::CVMFS) del_digest("CVMFS");
 
-    return 0;
+    return retval;
 }
 
 int        ChecksumManager::Ver(  const char *lfn, XrdCksData &Cks)

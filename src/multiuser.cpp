@@ -5,6 +5,7 @@
 #include "XrdOuc/XrdOucStream.hh"
 #include "XrdSec/XrdSecEntity.hh"
 #include "XrdSec/XrdSecEntityAttr.hh"
+#include "XrdSfs/XrdSfsAio.hh"
 #include "XrdSfs/XrdSfsInterface.hh"
 #include "XrdVersion.hh"
 #include "XrdOss/XrdOss.hh"
@@ -177,36 +178,92 @@ int     MultiuserFile::Open(const char *path, int Oflag, mode_t Mode, XrdOucEnv 
 
 
 
-ssize_t MultiuserFile::Write(const void *buffer, off_t offset, size_t size)
+// Checksum-on-write digests the data as it is written, so it needs every
+// byte, in order.  Each write path calls ChecksumBeforeWrite() before the
+// write and ChecksumAfterWrite() after it, with the sentry already active.
+
+// Abandon the running checksum if this write is not sequential; returns true
+// if it did.
+bool MultiuserFile::ChecksumBeforeWrite(off_t offset)
 {
-    bool checksum_abandoned = false;
+    if (!m_state || offset == m_nextoff) {return false;}
+    std::stringstream ss;
+    ss << "Non-sequential write detected; disabling checksum calculation for " << m_fname;
+    m_log.Emsg("Write", ss.str().c_str());
+    delete m_state;
+    m_state = NULL;
+    return true;
+}
 
-    if ((offset != m_nextoff) && m_state) 
-    {   
-        std::stringstream ss;
-        ss << "Non-sequential write detected; disabling checksum calculation for " << m_fname;
-        m_log.Emsg("Write", ss.str().c_str());
-        delete m_state;
-        m_state = NULL;
-        checksum_abandoned = true;
-    }
-
-    UserSentry sentry(m_identity, m_log);
-    if (!sentry.IsValid()) {return -EACCES;}
-    auto result = m_wrapped->Write(buffer, offset, size);
-    if (result >= 0)
+void MultiuserFile::ChecksumAfterWrite(const void *buffer, off_t offset, ssize_t result, bool abandoned)
+{
+    if (result >= 0) {m_nextoff = offset + result;}
+    // The content no longer matches any checksum stored for this file
+    // (including digests computed by an earlier Calc), so remove them all;
+    // even a failed write may follow sequential writes that changed it.
+    if (abandoned && g_checksum_manager)
     {
-        m_nextoff = offset + result;
-    }
-    if (checksum_abandoned && result > 0 && g_checksum_manager)
-    {
-        g_checksum_manager->Del(m_fname.c_str(), m_digests);
+        g_checksum_manager->Del(m_fname.c_str(), ChecksumManager::ALL);
     }
     if (m_state && result > 0)
     {
         m_state->Update(static_cast<const unsigned char*>(buffer), static_cast<size_t>(result));
     }
+}
+
+ssize_t MultiuserFile::Write(const void *buffer, off_t offset, size_t size)
+{
+    UserSentry sentry(m_identity, m_log);
+    if (!sentry.IsValid()) {return -EACCES;}
+    bool abandoned = ChecksumBeforeWrite(offset);
+    auto result = m_wrapped->Write(buffer, offset, size);
+    ChecksumAfterWrite(buffer, offset, result, abandoned);
     return result;
+}
+
+ssize_t MultiuserFile::pgWrite(void* buffer, off_t offset, size_t wrlen,
+                               uint32_t* csvec, uint64_t opts)
+{
+    UserSentry sentry(m_identity, m_log);
+    if (!sentry.IsValid()) {return -EACCES;}
+    bool abandoned = ChecksumBeforeWrite(offset);
+    auto result = m_wrapped->pgWrite(buffer, offset, wrlen, csvec, opts);
+    ChecksumAfterWrite(buffer, offset, result, abandoned);
+    return result;
+}
+
+// The asynchronous variants complete on other threads, in any order, so while
+// a checksum is running they are done synchronously instead (as XrdOssDF's
+// default pgWrite(XrdSfsAio*) does); otherwise they are passed through.
+int MultiuserFile::pgWrite(XrdSfsAio* aioparm, uint64_t opts)
+{
+    if (m_state) {return XrdOssDF::pgWrite(aioparm, opts);}  // calls this->pgWrite()
+    UserSentry sentry(m_identity, m_log);
+    if (!sentry.IsValid()) {return -EACCES;}
+    return m_wrapped->pgWrite(aioparm, opts);
+}
+
+int MultiuserFile::Write(XrdSfsAio *aiop)
+{
+    if (m_state)
+    {
+        aiop->Result = this->Write((const void *)aiop->sfsAio.aio_buf,  // as XrdOssDF does
+                                   static_cast<off_t>(aiop->sfsAio.aio_offset),
+                                   static_cast<size_t>(aiop->sfsAio.aio_nbytes));
+        aiop->doneWrite();
+        return 0;
+    }
+    UserSentry sentry(m_identity, m_log);
+    if (!sentry.IsValid()) {return -EACCES;}
+    return m_wrapped->Write(aiop);
+}
+
+ssize_t MultiuserFile::WriteV(XrdOucIOVec *writeV, int wrvcnt)
+{
+    if (m_state) {return XrdOssDF::WriteV(writeV, wrvcnt);}  // calls this->Write() per element
+    UserSentry sentry(m_identity, m_log);
+    if (!sentry.IsValid()) {return -EACCES;}
+    return m_wrapped->WriteV(writeV, wrvcnt);
 }
 
 

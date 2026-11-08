@@ -96,20 +96,11 @@ public:
         return m_wrapped->pgRead(aioparm, opts);
     }
 
+    // All write paths feed checksum-on-write (see multiuser.cpp).
     ssize_t pgWrite(void* buffer, off_t offset, size_t wrlen,
-                        uint32_t* csvec, uint64_t opts) override
-    {
-        UserSentry sentry(m_identity, m_log);
-        if (!sentry.IsValid()) {return -EACCES;}
-        return m_wrapped->pgWrite(buffer, offset, wrlen, csvec, opts);
-    }
+                        uint32_t* csvec, uint64_t opts) override;
 
-    int     pgWrite(XrdSfsAio* aioparm, uint64_t opts) override
-    {
-        UserSentry sentry(m_identity, m_log);
-        if (!sentry.IsValid()) {return -EACCES;}
-        return m_wrapped->pgWrite(aioparm, opts);
-    }
+    int     pgWrite(XrdSfsAio* aioparm, uint64_t opts) override;
 
     ssize_t Read(off_t offset, size_t size) override
     {
@@ -148,23 +139,16 @@ public:
 
     ssize_t Write(const void *buffer, off_t offset, size_t size) override;
 
-    int     Write(XrdSfsAio *aiop) override
-    {
-        UserSentry sentry(m_identity, m_log);
-        if (!sentry.IsValid()) {return -EACCES;}
-        return m_wrapped->Write(aiop);
-    }
+    int     Write(XrdSfsAio *aiop) override;
 
-    ssize_t WriteV(XrdOucIOVec *writeV, int wrvcnt) override
-    {
-        UserSentry sentry(m_identity, m_log);
-        if (!sentry.IsValid()) {return -EACCES;}
-        return m_wrapped->WriteV(writeV, wrvcnt);
-    }
+    ssize_t WriteV(XrdOucIOVec *writeV, int wrvcnt) override;
 
     int Close(long long *retsz=0);
 
 private:
+    bool    ChecksumBeforeWrite(off_t offset);
+    void    ChecksumAfterWrite(const void *buffer, off_t offset, ssize_t result, bool abandoned);
+
     std::unique_ptr<XrdOssDF> m_wrapped;
     XrdSysError &m_log;
     const XrdSecEntity* m_client{nullptr};
