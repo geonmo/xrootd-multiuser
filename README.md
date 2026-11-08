@@ -72,6 +72,14 @@ Notes:
 - The copy writes outside the plugin, so `multiuser.checksumonwrite` does not apply to it; checksums are
   computed on demand afterwards, through the multiuser checksum plugin.
 
+Tools
+-----
+
+`tools/xrootd-write-sizes.sh` measures the size distribution of the data writes the xrootd daemon issues
+to the storage, using strace for a short time (default 30 s), to judge whether write buffering would help
+(upstream issue #64).  Run it as root while typical transfers are running, e.g.
+`tools/xrootd-write-sizes.sh -p /lustre/cms -d 30`; strace slows the daemon down while it traces.
+
 Startup
 -------
 
