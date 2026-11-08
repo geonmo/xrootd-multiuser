@@ -45,6 +45,15 @@ set_target_properties(XrdMultiuser PROPERTIES OUTPUT_NAME "XrdMultiuser-${XROOTD
 
 SET(LIB_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Install path for libraries")
 
+# root:// TPC copy program wrapper; see README ("Third-party copy over root://").
+add_executable(xrdcp-multiuser src/xrdcp-multiuser.c)
+target_link_libraries(xrdcp-multiuser ${CAP_LIB})
+if( CMAKE_COMPILER_IS_GNUCC )
+  target_compile_options(xrdcp-multiuser PRIVATE -Wall -Wextra -Werror)
+endif()
+SET(LIBEXEC_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/libexec/xrootd-multiuser" CACHE PATH "Install path for helper programs")
+install(TARGETS xrdcp-multiuser RUNTIME DESTINATION ${LIBEXEC_INSTALL_DIR})
+
 install(
   TARGETS XrdMultiuser
   LIBRARY DESTINATION ${LIB_INSTALL_DIR}

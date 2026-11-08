@@ -1,6 +1,6 @@
 Name: xrootd-multiuser
 Version: 2.2.1
-Release: 1.1.6%{?dist}
+Release: 1.1.7%{?dist}
 Summary: Multiuser filesystem writing plugin for xrootd
 
 Group: System Environment/Daemons
@@ -40,6 +40,9 @@ BuildRequires: systemd
 
 Requires: xrootd-server >= 1:%{xrootd_major}.%{xrootd_current_minor}
 Requires: xrootd-server <  1:%{xrootd_next_major}.0.0-1
+# xrdcp-multiuser runs xrdcp, and is installed group-owned by xrootd
+Requires: xrootd-client
+Requires(pre): xrootd-server
 
 %description
 %{summary}
@@ -72,8 +75,16 @@ make install DESTDIR=$RPM_BUILD_ROOT
 %{_unitdir}/cmsd-privileged@.service
 %{_unitdir}/xrootd-privileged@.service
 %{_sysconfdir}/xrootd/config.d/60-osg-multiuser.cfg
+%dir %{_libexecdir}/xrootd-multiuser
+%attr(0750,root,xrootd) %caps(cap_setuid,cap_setgid,cap_dac_override=ep) %{_libexecdir}/xrootd-multiuser/xrdcp-multiuser
 
 %changelog
+* Sun Nov 08 2026 Geonmo Ryu <geonmo@kisti.re.kr> - 2.2.1-1.1.7
+- Add xrdcp-multiuser, an "ofs.tpc pgm" wrapper that runs root:// TPC copies
+  as the owner of the destination file (upstream issue #70)
+- Feed pgWrite, aio Write/pgWrite and WriteV into checksum-on-write, and
+  remove both checksum attributes when it is abandoned (upstream issue #75)
+
 * Thu Oct 22 2026 Geonmo Ryu <geonmo@kisti.re.kr> - 2.2.1-1.1.6
 - Non-sequential writes abandon checksum-on-write instead of failing the
   upload (port of upstream PR #61); null-check the checksum manager at close.
